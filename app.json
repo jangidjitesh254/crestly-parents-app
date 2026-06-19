@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Crestly Parents",
+    "slug": "crestly-parents",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "crestly-parents",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "backgroundColor": "#F25C19",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.crestly.parents"
+    },
+    "android": {
+      "package": "in.crestly.parents",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F25C19"
+      }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://192.168.31.214:4000/api"
+    }
+  }
+}
