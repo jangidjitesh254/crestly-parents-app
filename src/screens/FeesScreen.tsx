@@ -1,8 +1,11 @@
 /**
- * Fees — outstanding-due hero, online payment, fee breakdown and receipt
- * history for the active child. Online payment opens an HDFC hosted-checkout
- * in the browser; HDFC reconciles the payment server-side, so we just refetch
- * /parent/fees after the browser closes. Receipts are shared as text.
+ * Fees — a modern "balance card" experience.
+ *
+ *   stacked TOTAL DUE hero → pay panel (HDFC hosted checkout)
+ *   → fee breakdown → recent activity (receipts).
+ *
+ * Online payment opens an HDFC hosted-checkout in the browser; HDFC reconciles
+ * server-side, so we just refetch /parent/fees after the browser closes.
  */
 import React, { useState } from "react";
 import {
@@ -18,7 +21,7 @@ import { TopBar } from "../components/TopBar";
 import { PageHead } from "../components/PageHead";
 import { api, getErrorMessage } from "../lib/api";
 import { rupees } from "../lib/money";
-import { colors, fontSize, radius, space, tints } from "../theme";
+import { colors, fontSize, radius, shadow, space, tints } from "../theme";
 import type { ParentReceiptResponse } from "../types/api";
 
 function fmtDate(iso: string): string {
@@ -38,7 +41,6 @@ export function FeesScreen() {
 
   const pct = d && d.totalCharged > 0 ? Math.round((d.paidAmount / d.totalCharged) * 100) : 0;
   const isClear = d ? d.dueAmount <= 0 : false;
-  const tile = isClear ? tints.mint : tints.mustard;
 
   const [sharingId, setSharingId] = useState<number | null>(null);
   async function shareReceipt(id: number) {
@@ -74,79 +76,65 @@ export function FeesScreen() {
         <PageHead
           crumb="Fee ledger"
           title="Fees"
-          subtitle={
-            d
-              ? `Session ${d.sessionCode} · fee structure, paid amount & history`
-              : "Fee structure, paid amount & history"
-          }
+          subtitle={d ? `Session ${d.sessionCode}` : "Fee structure, payments & receipts"}
         />
 
         <ChildSwitcher />
 
         {fees.isLoading ? (
           <View style={{ gap: space[3] }}>
-            <Skeleton height={150} radius={18} />
-            <Skeleton height={200} radius={18} />
+            <Skeleton height={170} radius={24} />
+            <Skeleton height={200} radius={24} />
           </View>
         ) : fees.error ? (
           <StateView error={fees.error} onRetry={() => void fees.refetch()} />
         ) : d ? (
           <>
-            {/* Hero */}
+            {/* Hero — stacked balance card */}
             <FadeInView delay={0}>
-              <View style={styles.hero}>
-                <View style={styles.heroTop}>
-                  <View style={[styles.heroTile, { backgroundColor: tile.base }]}>
-                    <Ionicons
-                      name={isClear ? "checkmark-circle" : "cash-outline"}
-                      size={22}
-                      color={tile.deep}
+              <View style={styles.heroStack}>
+                {!isClear ? (
+                  <>
+                    <View style={[styles.heroLayer, styles.heroLayer2]} />
+                    <View style={[styles.heroLayer, styles.heroLayer1]} />
+                  </>
+                ) : null}
+                <View style={[styles.heroMain, isClear && { backgroundColor: tints.mint.deep }]}>
+                  <View style={styles.heroTop}>
+                    <View style={styles.heroChip}>
+                      <Ionicons name={isClear ? "checkmark-circle" : "wallet-outline"} size={14} color="#fff" />
+                      <Text style={styles.heroChipText}>{isClear ? "ALL CLEAR" : "TOTAL DUE"}</Text>
+                    </View>
+                    {activeKid ? (
+                      <Text style={styles.heroStudent} numberOfLines={1}>{activeKid.studentName}</Text>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.heroAmount}>{isClear ? "₹0" : rupees(d.dueAmount)}</Text>
+                  <Text style={styles.heroSubText}>
+                    {isClear ? "All fees cleared — thank you!" : `of ${rupees(d.totalCharged)} this session`}
+                  </Text>
+
+                  <View style={styles.heroProgressTrack}>
+                    <View
+                      style={[
+                        styles.heroProgressFill,
+                        { width: `${Math.max(2, Math.min(100, pct))}%`, backgroundColor: isClear ? "#fff" : colors.orange },
+                      ]}
                     />
                   </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.heroLabel} numberOfLines={1}>
-                      {(isClear ? "ALL CLEAR" : "OUTSTANDING DUE")}
-                      {activeKid ? ` · ${activeKid.studentName.toUpperCase()}` : ""}
-                    </Text>
-                    <Text style={styles.heroAmt}>{isClear ? "₹0" : rupees(d.dueAmount)}</Text>
+                  <View style={styles.heroFootRow}>
+                    <Text style={styles.heroFootText}>Paid {rupees(d.paidAmount)}</Text>
+                    <Text style={styles.heroFootText}>{pct}%</Text>
                   </View>
-                  {!isClear ? (
-                    <View style={styles.duePill}>
-                      <Text style={styles.duePillText}>DUE {rupees(d.dueAmount)}</Text>
-                    </View>
-                  ) : null}
                 </View>
-
-                {isClear ? (
-                  <View style={styles.clearRow}>
-                    <Ionicons name="checkmark-circle" size={16} color={tints.mint.deep} />
-                    <Text style={styles.clearText}>Nothing pending — thank you!</Text>
-                  </View>
-                ) : d.quarterlyInstallment > 0 ? (
-                  <Text style={styles.qtrLine}>
-                    Quarterly installment:{" "}
-                    <Text style={styles.qtrAmt}>{rupees(d.quarterlyInstallment)}</Text>
-                  </Text>
-                ) : null}
-
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${pct}%`, backgroundColor: isClear ? tints.mint.deep : colors.orange },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.progressText}>
-                  Paid {rupees(d.paidAmount)} of {rupees(d.totalCharged)} · {pct}%
-                </Text>
               </View>
             </FadeInView>
 
-            {/* Pay online */}
+            {/* Pay panel */}
             {!isClear ? (
-              <FadeInView delay={40}>
-                <PayOnlineCard
+              <FadeInView delay={60}>
+                <PayPanel
                   sr={sr}
                   dueAmount={d.dueAmount}
                   quarterly={d.quarterlyInstallment}
@@ -157,79 +145,66 @@ export function FeesScreen() {
 
             {/* Breakdown */}
             {d.breakdown.length > 0 ? (
-              <FadeInView delay={60}>
-                <View style={styles.headerRow}>
-                  <Text style={styles.headerLabel}>FEE BREAKDOWN</Text>
-                  <Text style={styles.headerMeta}>SESSION {d.sessionCode}</Text>
-                </View>
+              <FadeInView delay={100}>
+                <Text style={styles.sectionTitle}>Fee breakdown</Text>
                 <View style={styles.card}>
                   {d.breakdown.map((b, i) => (
-                    <View key={`${b.label}-${i}`} style={[styles.row, styles.rowBorder]}>
+                    <View key={`${b.label}-${i}`} style={[styles.bRow, styles.rowBorder]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.rowLabel}>{b.label}</Text>
-                        {b.note ? <Text style={styles.rowNote}>{b.note}</Text> : null}
+                        <Text style={styles.bLabel}>{b.label}</Text>
+                        {b.note ? <Text style={styles.bNote}>{b.note}</Text> : null}
                       </View>
-                      <Text style={styles.rowAmount}>{rupees(b.amount)}</Text>
+                      <Text style={styles.bAmount}>{rupees(b.amount)}</Text>
                     </View>
                   ))}
-                  <View style={styles.row}>
-                    <Text style={styles.totalLabel}>Total this year</Text>
-                    <Text style={styles.totalAmount}>{rupees(d.totalCharged)}</Text>
+                  <View style={styles.bRow}>
+                    <Text style={styles.bTotalLabel}>Total this year</Text>
+                    <Text style={styles.bTotalAmount}>{rupees(d.totalCharged)}</Text>
                   </View>
                 </View>
               </FadeInView>
             ) : null}
 
-            {/* Payment history */}
-            <FadeInView delay={120}>
-              <View style={styles.headerRow}>
-                <Text style={styles.headerLabel}>PAYMENT HISTORY</Text>
-                <Text style={styles.headerMeta}>
-                  {d.payments.length} {d.payments.length === 1 ? "RECEIPT" : "RECEIPTS"}
+            {/* Recent activity */}
+            <FadeInView delay={140}>
+              <View style={styles.activityHead}>
+                <Text style={styles.sectionTitle}>Recent activity</Text>
+                <Text style={styles.activityCount}>
+                  {d.payments.length} {d.payments.length === 1 ? "receipt" : "receipts"}
                 </Text>
               </View>
               {d.payments.length === 0 ? (
                 <EmptyState
                   icon={<Ionicons name="receipt-outline" size={24} color={colors.ink40} />}
                   title="No payments yet"
-                  body="Receipts will appear here once the school records them."
+                  body="Receipts will appear here once a payment is recorded."
                 />
               ) : (
                 <View style={styles.card}>
                   {d.payments.map((p, i) => (
-                    <View
-                      key={p.id}
-                      style={[styles.payRow, i < d.payments.length - 1 && styles.rowBorder]}
-                    >
-                      <View style={styles.payCheck}>
-                        <Ionicons name="checkmark" size={15} color={tints.mint.deep} />
+                    <View key={p.id} style={[styles.aRow, i < d.payments.length - 1 && styles.rowBorder]}>
+                      <View style={styles.aIcon}>
+                        <Ionicons name="checkmark" size={16} color={tints.mint.deep} />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.payReceipt} numberOfLines={1}>{p.receiptNo}</Text>
-                        <Text style={styles.payDate}>{fmtDate(p.paidOn)}</Text>
-                        <View style={styles.methodPill}>
-                          <Text style={styles.methodText}>{methodLabel(p.method)}</Text>
-                        </View>
-                        {p.reference ? (
-                          <Text style={styles.payRef} numberOfLines={1}>Ref: {p.reference}</Text>
-                        ) : null}
-                        {p.recordedBy ? (
-                          <Text style={styles.payBy} numberOfLines={1}>Recorded by {p.recordedBy}</Text>
-                        ) : null}
+                        <Text style={styles.aTitle} numberOfLines={1}>{p.receiptNo}</Text>
+                        <Text style={styles.aMeta} numberOfLines={1}>
+                          {fmtDate(p.paidOn)}  ·  {methodLabel(p.method)}
+                        </Text>
                       </View>
-                      <View style={styles.payRight}>
-                        <Text style={styles.payAmt}>{rupees(p.amount)}</Text>
+                      <View style={styles.aRight}>
+                        <Text style={styles.aAmount}>{rupees(p.amount)}</Text>
                         <Pressable
                           onPress={() => void shareReceipt(p.id)}
                           disabled={sharingId === p.id}
                           hitSlop={8}
-                          style={styles.dlBtn}
+                          style={styles.aShare}
                           accessibilityLabel="Share receipt"
                         >
                           {sharingId === p.id ? (
                             <ActivityIndicator size="small" color={colors.orangeDeep} />
                           ) : (
-                            <Ionicons name="download-outline" size={16} color={colors.orangeDeep} />
+                            <Ionicons name="share-outline" size={15} color={colors.orangeDeep} />
                           )}
                         </Pressable>
                       </View>
@@ -238,11 +213,6 @@ export function FeesScreen() {
                 </View>
               )}
             </FadeInView>
-
-            <Text style={styles.footer}>
-              Powered by Shadowbiz Startups Developer{"\n"}
-              Built to support the school ecosystem.
-            </Text>
           </>
         ) : null}
       </Screen>
@@ -250,12 +220,8 @@ export function FeesScreen() {
   );
 }
 
-/**
- * Pay-online card — amount chips (Full / Half / Quarterly / Custom), a
- * free amount input capped at the due amount, then a "Pay now" button that
- * opens the HDFC hosted-checkout in the browser.
- */
-function PayOnlineCard({
+/** Pay-online panel — amount chips, free amount, then HDFC hosted-checkout. */
+function PayPanel({
   sr,
   dueAmount,
   quarterly,
@@ -272,11 +238,9 @@ function PayOnlineCard({
   const amt = Math.max(0, Math.min(dueAmount, Math.round(Number(amount) || 0)));
 
   const chips: { key: string; label: string; val: number }[] = [
-    { key: "full", label: `Full · ${rupees(dueAmount)}`, val: dueAmount },
-    { key: "half", label: `Half · ${rupees(half)}`, val: half },
-    ...(quarterly > 0 && quarterly < dueAmount
-      ? [{ key: "qtr", label: `Quarterly · ${rupees(quarterly)}`, val: quarterly }]
-      : []),
+    { key: "full", label: "Full", val: dueAmount },
+    { key: "half", label: "Half", val: half },
+    ...(quarterly > 0 && quarterly < dueAmount ? [{ key: "qtr", label: "Quarter", val: quarterly }] : []),
   ];
 
   async function pay() {
@@ -287,7 +251,6 @@ function PayOnlineCard({
     try {
       const session = await checkout.mutateAsync({ sr, amount: amt });
       await WebBrowser.openBrowserAsync(session.checkoutUrl);
-      // HDFC reconciles server-side; refresh fees to pick up the new payment.
       onDone();
     } catch (e) {
       Alert.alert("Payment couldn't start", getErrorMessage(e, "Please try again in a moment."));
@@ -296,10 +259,15 @@ function PayOnlineCard({
 
   return (
     <View style={styles.payCard}>
-      <Text style={styles.payTitle}>Pay fees online</Text>
-      <Text style={styles.paySub}>
-        Pay the full amount or any part of it. UPI · Cards · Netbanking · Wallets.
-      </Text>
+      <View style={styles.payHead}>
+        <View style={styles.payIcon}>
+          <Ionicons name="card-outline" size={18} color={colors.orangeDeep} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.payTitle}>Pay fees online</Text>
+          <Text style={styles.paySub}>UPI · Cards · Netbanking · Wallets</Text>
+        </View>
+      </View>
 
       <View style={styles.chipRow}>
         {chips.map((c) => {
@@ -311,6 +279,7 @@ function PayOnlineCard({
               style={[styles.chip, active && styles.chipActive]}
             >
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
+              <Text style={[styles.chipAmt, active && styles.chipTextActive]}>{rupees(c.val)}</Text>
             </Pressable>
           );
         })}
@@ -324,7 +293,7 @@ function PayOnlineCard({
           onChangeText={(v) => setAmount(v.replace(/[^\d]/g, ""))}
           keyboardType="number-pad"
           placeholder="0"
-          placeholderTextColor="rgba(255,255,255,0.5)"
+          placeholderTextColor={colors.ink40}
           maxLength={8}
         />
         <Text style={styles.amtMax}>max {rupees(dueAmount)}</Text>
@@ -333,194 +302,149 @@ function PayOnlineCard({
       <Pressable
         onPress={pay}
         disabled={checkout.isPending || amt <= 0}
-        style={[styles.payBtn, (checkout.isPending || amt <= 0) && { opacity: 0.6 }]}
+        style={[styles.payBtn, (checkout.isPending || amt <= 0) && { opacity: 0.55 }]}
       >
         {checkout.isPending ? (
-          <ActivityIndicator color={colors.orangeDeep} />
+          <ActivityIndicator color="#fff" />
         ) : (
           <>
-            <Ionicons name="card-outline" size={18} color={colors.orangeDeep} />
             <Text style={styles.payBtnText}>Pay {rupees(amt)} now</Text>
+            <Ionicons name="arrow-forward" size={17} color="#fff" />
           </>
         )}
       </Pressable>
 
-      <Text style={styles.paySecure}>
-        Secured by HDFC SmartGateway · receipt generated automatically
-      </Text>
+      <Text style={styles.paySecure}>Secured by HDFC SmartGateway · receipt generated automatically</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.creamSoft },
+  root: { flex: 1, backgroundColor: colors.white },
 
-  /* Hero */
-  hero: {
+  /* Hero — stacked balance card */
+  heroStack: { position: "relative", marginBottom: 16 },
+  heroMain: {
+    backgroundColor: colors.ink,
+    borderRadius: 24,
+    padding: space[5],
+    overflow: "hidden",
+    zIndex: 2,
+  },
+  heroLayer: { position: "absolute", height: 34, borderRadius: 22 },
+  heroLayer1: { bottom: -8, left: 14, right: 14, backgroundColor: colors.ink80, zIndex: 1 },
+  heroLayer2: { bottom: -16, left: 30, right: 30, backgroundColor: colors.ink60, zIndex: 0 },
+  heroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space[2] },
+  heroChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: space[2], paddingVertical: 4,
+    borderRadius: radius.pill,
+  },
+  heroChipText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
+  heroStudent: { color: "rgba(255,255,255,0.7)", fontSize: fontSize.bodyS, fontWeight: "700", flexShrink: 1 },
+  heroAmount: { color: "#fff", fontSize: 36, fontWeight: "900", letterSpacing: -1.4, marginTop: space[3] },
+  heroSubText: { color: "rgba(255,255,255,0.66)", fontSize: fontSize.bodyS, marginTop: 4, fontWeight: "600" },
+  heroProgressTrack: {
+    height: 8, backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: radius.pill, overflow: "hidden", marginTop: space[4],
+  },
+  heroProgressFill: { height: "100%", borderRadius: radius.pill },
+  heroFootRow: { flexDirection: "row", justifyContent: "space-between", marginTop: space[2] },
+  heroFootText: { color: "rgba(255,255,255,0.7)", fontSize: fontSize.bodyS, fontWeight: "700" },
+
+  /* Section title */
+  sectionTitle: {
+    fontSize: fontSize.h2, fontWeight: "800", color: colors.ink,
+    letterSpacing: -0.3, marginBottom: space[3],
+  },
+
+  /* Pay panel */
+  payCard: {
     backgroundColor: colors.white,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: colors.rule,
     padding: space[4],
     gap: space[3],
+    ...shadow.card,
   },
-  heroTop: { flexDirection: "row", alignItems: "center", gap: space[3] },
-  heroTile: {
-    width: 44,
-    height: 44,
-    borderRadius: radius[3],
-    alignItems: "center",
-    justifyContent: "center",
+  payHead: { flexDirection: "row", alignItems: "center", gap: space[3] },
+  payIcon: {
+    width: 40, height: 40, borderRadius: radius[4],
+    backgroundColor: colors.orangeTint,
+    alignItems: "center", justifyContent: "center",
   },
-  heroLabel: {
-    fontSize: fontSize.label,
-    fontWeight: "800",
-    color: colors.ink40,
-    letterSpacing: 1.2,
-  },
-  heroAmt: { fontSize: 30, fontWeight: "800", color: colors.ink, letterSpacing: -1, marginTop: 2 },
-  duePill: {
-    backgroundColor: tints.wheat.base,
-    paddingHorizontal: space[2],
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-  },
-  duePillText: { fontSize: 10, fontWeight: "800", color: tints.wheat.deep, letterSpacing: 0.3 },
-
-  clearRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  clearText: { fontSize: fontSize.body, fontWeight: "700", color: tints.mint.deep },
-  qtrLine: { fontSize: fontSize.bodyS, color: colors.ink60 },
-  qtrAmt: { fontWeight: "800", color: colors.ink },
-
-  /* Pay online card */
-  payCard: {
-    backgroundColor: colors.orange,
-    borderRadius: 20,
-    padding: space[4],
-    gap: space[3],
-  },
-  payTitle: { fontSize: fontSize.h1, fontWeight: "800", color: colors.white },
-  paySub: { fontSize: fontSize.bodyS, color: "rgba(255,255,255,0.9)", lineHeight: 18 },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: space[2] },
+  payTitle: { fontSize: fontSize.bodyL, fontWeight: "800", color: colors.ink },
+  paySub: { fontSize: fontSize.bodyS, color: colors.ink60, marginTop: 1 },
+  chipRow: { flexDirection: "row", gap: space[2] },
   chip: {
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: radius.pill,
-    paddingHorizontal: space[3],
-    paddingVertical: 7,
-  },
-  chipActive: { backgroundColor: colors.white },
-  chipText: { fontSize: fontSize.bodyS, fontWeight: "800", color: colors.white },
-  chipTextActive: { color: colors.orangeDeep },
-  amtRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space[2],
-    backgroundColor: "rgba(0,0,0,0.18)",
-    borderRadius: radius[3],
-    paddingHorizontal: space[3],
-    minHeight: 54,
-  },
-  amtCur: { fontSize: fontSize.h1, fontWeight: "800", color: colors.white },
-  amtInput: {
     flex: 1,
-    fontSize: fontSize.displayS,
-    fontWeight: "800",
-    color: colors.white,
+    backgroundColor: colors.creamSoft,
+    borderWidth: 1, borderColor: colors.rule,
+    borderRadius: 14,
     paddingVertical: space[2],
-  },
-  amtMax: { fontSize: fontSize.bodyS, color: "rgba(255,255,255,0.75)", fontWeight: "600" },
-  payBtn: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: colors.white,
-    borderRadius: radius[3],
+    gap: 1,
+  },
+  chipActive: { backgroundColor: colors.orange, borderColor: colors.orange },
+  chipText: { fontSize: fontSize.bodyS, fontWeight: "800", color: colors.ink },
+  chipAmt: { fontSize: 11, fontWeight: "700", color: colors.ink60 },
+  chipTextActive: { color: "#fff" },
+  amtRow: {
+    flexDirection: "row", alignItems: "center", gap: space[2],
+    backgroundColor: colors.creamSoft,
+    borderRadius: 14,
+    paddingHorizontal: space[3],
     minHeight: 54,
   },
-  payBtnText: { fontSize: fontSize.bodyL, fontWeight: "800", color: colors.orangeDeep },
-  paySecure: { fontSize: fontSize.cap, color: "rgba(255,255,255,0.85)", textAlign: "center" },
-
-  progressTrack: {
-    height: 8,
-    backgroundColor: colors.cream,
-    borderRadius: radius.pill,
-    overflow: "hidden",
+  amtCur: { fontSize: fontSize.h1, fontWeight: "800", color: colors.ink },
+  amtInput: { flex: 1, fontSize: fontSize.displayS, fontWeight: "800", color: colors.ink, paddingVertical: space[2] },
+  amtMax: { fontSize: fontSize.bodyS, color: colors.ink40, fontWeight: "600" },
+  payBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: colors.orange,
+    borderRadius: 16,
+    minHeight: 54,
   },
-  progressFill: { height: "100%", borderRadius: radius.pill },
-  progressText: { fontSize: fontSize.bodyS, color: colors.ink60, fontWeight: "600" },
+  payBtnText: { fontSize: fontSize.bodyL, fontWeight: "800", color: "#fff" },
+  paySecure: { fontSize: fontSize.cap, color: colors.ink40, textAlign: "center" },
 
-  /* Section headers */
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: space[3],
-    marginBottom: space[1],
-    paddingHorizontal: space[1],
-  },
-  headerLabel: { fontSize: fontSize.label, fontWeight: "800", color: colors.ink40, letterSpacing: 1.6 },
-  headerMeta: { fontSize: fontSize.label, fontWeight: "800", color: colors.ink20, letterSpacing: 1.2 },
-
-  /* Cards / rows */
+  /* Generic card */
   card: {
     backgroundColor: colors.white,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: colors.rule,
     paddingHorizontal: space[4],
+    ...shadow.card,
   },
-  row: { flexDirection: "row", alignItems: "center", gap: space[2], paddingVertical: space[3] },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.ruleSoft },
-  rowLabel: { fontSize: fontSize.body, color: colors.ink80, fontWeight: "600" },
-  rowNote: { fontSize: fontSize.cap, color: colors.ink60, marginTop: 2 },
-  rowAmount: { fontSize: fontSize.body, color: colors.ink, fontWeight: "800" },
-  totalLabel: { flex: 1, fontSize: fontSize.bodyL, fontWeight: "800", color: colors.ink },
-  totalAmount: { fontSize: fontSize.bodyL, fontWeight: "800", color: colors.orangeDeep },
 
-  /* Payment history */
-  payRow: { flexDirection: "row", alignItems: "flex-start", gap: space[3], paddingVertical: space[4] },
-  payCheck: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  /* Breakdown */
+  bRow: { flexDirection: "row", alignItems: "center", gap: space[2], paddingVertical: space[3] },
+  bLabel: { fontSize: fontSize.body, color: colors.ink80, fontWeight: "600" },
+  bNote: { fontSize: fontSize.cap, color: colors.ink60, marginTop: 2 },
+  bAmount: { fontSize: fontSize.body, color: colors.ink, fontWeight: "800" },
+  bTotalLabel: { flex: 1, fontSize: fontSize.bodyL, fontWeight: "800", color: colors.ink },
+  bTotalAmount: { fontSize: fontSize.bodyL, fontWeight: "800", color: colors.orangeDeep },
+
+  /* Recent activity */
+  activityHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  activityCount: { fontSize: fontSize.bodyS, color: colors.ink40, fontWeight: "700", marginBottom: space[3] },
+  aRow: { flexDirection: "row", alignItems: "center", gap: space[3], paddingVertical: space[4] },
+  aIcon: {
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: tints.mint.base,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 2,
+    alignItems: "center", justifyContent: "center",
   },
-  payReceipt: { fontSize: fontSize.body, fontWeight: "800", color: colors.orangeDeep },
-  payDate: { fontSize: fontSize.bodyS, color: colors.ink60, marginTop: 2 },
-  methodPill: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.cream,
-    paddingHorizontal: space[2],
-    paddingVertical: 2,
-    borderRadius: radius[2],
-    marginTop: 4,
-  },
-  methodText: { fontSize: 9.5, fontWeight: "800", color: colors.ink60, letterSpacing: 0.6 },
-  payRef: { fontSize: fontSize.cap, color: colors.ink40, marginTop: 4 },
-  payBy: { fontSize: fontSize.cap, color: colors.ink40, marginTop: 2 },
-  payRight: { alignItems: "flex-end", gap: 6 },
-  payAmt: { fontSize: fontSize.bodyL, fontWeight: "800", color: tints.mint.deep },
-  dlBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  aTitle: { fontSize: fontSize.body, fontWeight: "800", color: colors.ink },
+  aMeta: { fontSize: fontSize.bodyS, color: colors.ink60, marginTop: 2, fontWeight: "600" },
+  aRight: { alignItems: "flex-end", gap: 6 },
+  aAmount: { fontSize: fontSize.bodyL, fontWeight: "800", color: tints.mint.deep },
+  aShare: {
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: colors.orangeTint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  footer: {
-    marginTop: space[6],
-    paddingTop: space[5],
-    borderTopWidth: 1,
-    borderTopColor: colors.rule,
-    fontSize: fontSize.cap,
-    color: colors.ink40,
-    textAlign: "center",
-    lineHeight: 18,
+    alignItems: "center", justifyContent: "center",
   },
 });

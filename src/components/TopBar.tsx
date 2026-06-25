@@ -7,7 +7,7 @@
  * consistent across stack pushes — see RootNavigator (`headerShown:false`).
  */
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useParentSchoolInfo } from "../hooks/queries";
@@ -35,10 +35,7 @@ export function TopBar({ showBack, onBack }: Props) {
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </Pressable>
         ) : (
-          <View style={styles.mark}>
-            <Text style={styles.markLetter}>C</Text>
-            <View style={styles.markDot} />
-          </View>
+          <Image source={require("../../assets/icon.png")} style={styles.mark} />
         )}
 
         <View style={styles.idBlock}>

@@ -32,6 +32,8 @@ interface AuthState {
   familyId: number | null;
   loading: boolean;
   activeChildSr: number | null;
+  justSignedIn: boolean;
+  clearJustSignedIn: () => void;
   setActiveChildSr: (sr: number) => Promise<void>;
   signIn: (phone: string, dob: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -46,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [familyId, setFamilyId] = useState<number | null>(null);
   const [activeChildSr, setActiveChildSrState] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [justSignedIn, setJustSignedIn] = useState(false);
 
   const applySession = useCallback(
     (
@@ -136,9 +139,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data.parentLabel,
         data.familyId,
       );
+      setJustSignedIn(true);
     },
     [applySession],
   );
+
+  const clearJustSignedIn = useCallback(() => setJustSignedIn(false), []);
 
   const setActiveChildSr = useCallback(async (sr: number) => {
     setActiveChildSrState(sr);
@@ -153,6 +159,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       familyId,
       loading,
       activeChildSr,
+      justSignedIn,
+      clearJustSignedIn,
       setActiveChildSr,
       signIn,
       signOut,
@@ -164,6 +172,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       familyId,
       loading,
       activeChildSr,
+      justSignedIn,
+      clearJustSignedIn,
       setActiveChildSr,
       signIn,
       signOut,

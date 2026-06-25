@@ -157,7 +157,7 @@ export function DiaryScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.creamSoft },
+  root: { flex: 1, backgroundColor: colors.white },
 
   recentRow: { gap: space[2], paddingVertical: 2 },
   recentPill: {

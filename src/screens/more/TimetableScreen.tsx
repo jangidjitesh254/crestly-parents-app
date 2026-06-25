@@ -138,7 +138,7 @@ export function TimetableScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.creamSoft },
+  root: { flex: 1, backgroundColor: colors.white },
 
   headerRow: { flexDirection: "row" },
   row: { flexDirection: "row" },

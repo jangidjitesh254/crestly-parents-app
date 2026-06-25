@@ -1,21 +1,13 @@
 import React, { useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../store/auth";
 import { useParentAttendance } from "../hooks/queries";
 import { ChildSwitcher } from "../components/ChildSwitcher";
-import {
-  Card,
-  FadeInView,
-  Screen,
-  SectionHeader,
-  Skeleton,
-  StateView,
-  Stepper,
-} from "../components/ui";
+import { FadeInView, Screen, Skeleton, StateView } from "../components/ui";
 import { TopBar } from "../components/TopBar";
 import { PageHead } from "../components/PageHead";
-import { colors, fontSize, radius, space, tints } from "../theme";
+import { colors, fontSize, radius, shadow, space, tints } from "../theme";
 
 const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
   present: { bg: tints.mint.base, fg: tints.mint.deep },
@@ -26,6 +18,12 @@ const STATUS_COLOR: Record<string, { bg: string; fg: string }> = {
 };
 
 const WEEKDAY_HEADERS = ["S", "M", "T", "W", "T", "F", "S"];
+const LEGEND = [
+  { key: "present", label: "Present", tint: tints.mint },
+  { key: "absent", label: "Absent", tint: tints.rose },
+  { key: "late", label: "Late", tint: tints.mustard },
+  { key: "excused", label: "Excused", tint: tints.sky },
+] as const;
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -43,12 +41,14 @@ function monthLabel(m: string): string {
 function labelStatus(s: string): string {
   return s.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
-function shortStatus(s: string): string {
-  return s === "present" ? "P"
-    : s === "absent" ? "A"
-    : s === "late" ? "L"
-    : s === "excused" ? "E"
-    : "·";
+function todayCaption(status?: string): string {
+  switch (status) {
+    case "present": return "Marked present at school today.";
+    case "absent": return "Marked absent today.";
+    case "late": return "Marked late today.";
+    case "excused": return "Excused today.";
+    default: return "Today’s attendance isn’t marked yet.";
+  }
 }
 
 export function AttendanceScreen() {
@@ -74,6 +74,11 @@ export function AttendanceScreen() {
   const todayColor = att.data
     ? STATUS_COLOR[att.data.todayStatus] ?? STATUS_COLOR.not_marked!
     : STATUS_COLOR.not_marked!;
+  const sum = att.data?.monthSummary;
+  const pct = sum?.percent ?? 0;
+  const marked = sum ? sum.present + sum.late + sum.absent + sum.excused : 0;
+  const atMax = month >= today;
+  const dateLabel = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 
   return (
     <View style={styles.root}>
@@ -87,29 +92,32 @@ export function AttendanceScreen() {
 
         <ChildSwitcher />
 
-        {/* Today hero */}
+        {/* Today */}
         <FadeInView delay={0}>
           <View style={[styles.todayCard, { backgroundColor: todayColor.bg }]}>
-            <View style={styles.todayLeft}>
-              <Text style={[styles.todayLabel, { color: todayColor.fg }]}>
-                TODAY
-              </Text>
-              <Text style={[styles.todayValue, { color: todayColor.fg }]}>
+            <View style={styles.todayBlob} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={styles.todayTopRow}>
+                <Text style={[styles.todayKicker, { color: todayColor.fg }]}>TODAY</Text>
+                <View style={styles.todayDateChip}>
+                  <Text style={[styles.todayDateText, { color: todayColor.fg }]}>{dateLabel}</Text>
+                </View>
+              </View>
+              <Text style={[styles.todayValue, { color: todayColor.fg }]} numberOfLines={1}>
                 {att.data ? labelStatus(att.data.todayStatus) : "—"}
               </Text>
+              <Text style={[styles.todayCaption, { color: todayColor.fg }]}>
+                {todayCaption(att.data?.todayStatus)}
+              </Text>
             </View>
-            <View style={[styles.todayIcon, { backgroundColor: "rgba(255,255,255,0.4)" }]}>
+            <View style={[styles.todayIcon, { backgroundColor: "rgba(255,255,255,0.5)" }]}>
               <Ionicons
                 name={
-                  att.data?.todayStatus === "present"
-                    ? "checkmark-circle"
-                    : att.data?.todayStatus === "absent"
-                    ? "close-circle"
-                    : att.data?.todayStatus === "late"
-                    ? "time"
-                    : att.data?.todayStatus === "excused"
-                    ? "information-circle"
-                    : "calendar-outline"
+                  att.data?.todayStatus === "present" ? "checkmark-circle"
+                  : att.data?.todayStatus === "absent" ? "close-circle"
+                  : att.data?.todayStatus === "late" ? "time"
+                  : att.data?.todayStatus === "excused" ? "information-circle"
+                  : "calendar-outline"
                 }
                 size={28}
                 color={todayColor.fg}
@@ -118,58 +126,58 @@ export function AttendanceScreen() {
           </View>
         </FadeInView>
 
-        {/* Last 7 */}
+        {/* Month summary */}
         <FadeInView delay={60}>
-          <SectionHeader label="Last 7 days" />
-          <View style={styles.last7Row}>
-            {att.isLoading
-              ? Array.from({ length: 7 }).map((_, i) => (
-                  <Skeleton key={i} height={56} radius={10} style={{ flex: 1 }} />
-                ))
-              : (att.data?.last7 ?? []).map((d) => {
-                  const c = STATUS_COLOR[d.status] ?? STATUS_COLOR.not_marked!;
-                  return (
-                    <View
-                      key={d.iso}
-                      style={[styles.last7Cell, { backgroundColor: c.bg, borderColor: c.fg }]}
-                    >
-                      <Text style={[styles.last7Day, { color: c.fg }]}>
-                        {d.iso.slice(8, 10)}
-                      </Text>
-                      <Text style={[styles.last7Status, { color: c.fg }]}>
-                        {shortStatus(d.status)}
-                      </Text>
-                    </View>
-                  );
-                })}
-          </View>
-        </FadeInView>
+          <View style={styles.card}>
+            {/* Month stepper */}
+            <View style={styles.monthRow}>
+              <Pressable onPress={() => setMonth(shiftMonth(month, -1))} hitSlop={8} style={styles.monthBtn}>
+                <Ionicons name="chevron-back" size={20} color={colors.orange} />
+              </Pressable>
+              <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
+              <Pressable
+                onPress={() => !atMax && setMonth(shiftMonth(month, +1))}
+                disabled={atMax}
+                hitSlop={8}
+                style={[styles.monthBtn, atMax && { opacity: 0.3 }]}
+              >
+                <Ionicons name="chevron-forward" size={20} color={colors.orange} />
+              </Pressable>
+            </View>
 
-        {/* Month stepper */}
-        <FadeInView delay={120}>
-          <SectionHeader label="Month view" />
-          <Stepper
-            label={monthLabel(month)}
-            onPrev={() => setMonth(shiftMonth(month, -1))}
-            onNext={() => setMonth(shiftMonth(month, +1))}
-            nextDisabled={month >= today}
-          />
-        </FadeInView>
+            {/* Big % + progress */}
+            <View style={styles.pctRow}>
+              <Text style={styles.bigPct}>
+                {pct}<Text style={styles.pctSign}>%</Text>
+              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.pctCaption}>
+                  {marked > 0 ? `${sum?.present ?? 0} present of ${marked} marked days` : "No days marked yet"}
+                </Text>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${Math.max(0, Math.min(100, pct))}%`, backgroundColor: pct >= 75 ? tints.mint.deep : colors.warn },
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
 
-        {/* Summary stats */}
-        <FadeInView delay={150}>
-          <View style={styles.statsRow}>
-            <Stat label="%" value={`${att.data?.monthSummary.percent ?? 0}%`} tone={tints.mint} primary />
-            <Stat label="Present" value={String(att.data?.monthSummary.present ?? 0)} tone={tints.mint} />
-            <Stat label="Late" value={String(att.data?.monthSummary.late ?? 0)} tone={tints.mustard} />
-            <Stat label="Absent" value={String(att.data?.monthSummary.absent ?? 0)} tone={tints.rose} />
-            <Stat label="Excused" value={String(att.data?.monthSummary.excused ?? 0)} tone={tints.sky} />
+            {/* Counts */}
+            <View style={styles.chipsRow}>
+              <CountChip label="Present" value={sum?.present ?? 0} tint={tints.mint} />
+              <CountChip label="Late" value={sum?.late ?? 0} tint={tints.mustard} />
+              <CountChip label="Absent" value={sum?.absent ?? 0} tint={tints.rose} />
+              <CountChip label="Excused" value={sum?.excused ?? 0} tint={tints.sky} />
+            </View>
           </View>
         </FadeInView>
 
         {/* Calendar */}
-        <FadeInView delay={180}>
-          <Card>
+        <FadeInView delay={120}>
+          <View style={styles.card}>
             {att.isLoading ? (
               <View style={{ gap: space[2] }}>
                 <Skeleton height={20} />
@@ -178,7 +186,7 @@ export function AttendanceScreen() {
             ) : att.error ? (
               <StateView error={att.error} onRetry={() => void att.refetch()} />
             ) : (
-              <View>
+              <>
                 <View style={styles.weekRow}>
                   {WEEKDAY_HEADERS.map((h, i) => (
                     <Text key={i} style={styles.weekHeader}>{h}</Text>
@@ -188,124 +196,135 @@ export function AttendanceScreen() {
                   {cells.map((c, i) => {
                     if (!c.day) return <View key={i} style={styles.calCell} />;
                     const status = att.data?.days[String(c.day)] ?? "not_marked";
+                    const isMarked = status !== "not_marked";
                     const col = STATUS_COLOR[status] ?? STATUS_COLOR.not_marked!;
                     return (
-                      <View
-                        key={i}
-                        style={[
-                          styles.calCell,
-                          { backgroundColor: col.bg, borderColor: col.fg, borderWidth: 1 },
-                        ]}
-                      >
-                        <Text style={[styles.calDay, { color: col.fg }]}>{c.day}</Text>
+                      <View key={i} style={styles.calCell}>
+                        <View style={[styles.dayPill, isMarked && { backgroundColor: col.bg }]}>
+                          <Text style={[styles.calDay, { color: isMarked ? col.fg : colors.ink60 }]}>
+                            {c.day}
+                          </Text>
+                        </View>
                       </View>
                     );
                   })}
                 </View>
-              </View>
-            )}
-          </Card>
-        </FadeInView>
 
-        {/* Legend */}
-        <View style={styles.legend}>
-          {(["present", "absent", "late", "excused", "not_marked"] as const).map((s) => {
-            const c = STATUS_COLOR[s]!;
-            return (
-              <View key={s} style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: c.bg, borderColor: c.fg }]} />
-                <Text style={styles.legendText}>{labelStatus(s)}</Text>
-              </View>
-            );
-          })}
-        </View>
+                {/* Legend */}
+                <View style={styles.legend}>
+                  {LEGEND.map((l) => (
+                    <View key={l.key} style={styles.legendItem}>
+                      <View style={[styles.legendDot, { backgroundColor: l.tint.base }]} />
+                      <Text style={styles.legendText}>{l.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+        </FadeInView>
       </Screen>
     </View>
   );
 }
 
-function Stat({
+function CountChip({
   label,
   value,
-  tone,
-  primary,
+  tint,
 }: {
   label: string;
-  value: string;
-  tone: { base: string; deep: string };
-  primary?: boolean;
+  value: number;
+  tint: { base: string; deep: string };
 }) {
   return (
-    <View
-      style={[
-        styles.stat,
-        { backgroundColor: tone.base },
-        primary && { paddingVertical: space[4] },
-      ]}
-    >
-      <Text style={[styles.statValue, { color: tone.deep, fontSize: primary ? 24 : 18 }]}>
-        {value}
-      </Text>
-      <Text style={[styles.statLabel, { color: tone.deep }]}>{label.toUpperCase()}</Text>
+    <View style={[styles.chip, { backgroundColor: tint.base }]}>
+      <Text style={[styles.chipNum, { color: tint.deep }]}>{value}</Text>
+      <Text style={[styles.chipLabel, { color: tint.deep }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.creamSoft },
+  root: { flex: 1, backgroundColor: colors.white },
 
-  /* Today hero */
+  /* Today */
   todayCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: space[5],
-    borderRadius: 20,
+    padding: space[4],
+    borderRadius: 22,
     gap: space[3],
+    overflow: "hidden",
   },
-  todayLeft: { flex: 1 },
-  todayLabel: { fontSize: fontSize.label, fontWeight: "800", letterSpacing: 1.6 },
-  todayValue: {
-    fontSize: fontSize.displayM,
-    fontWeight: "800",
-    letterSpacing: -0.6,
-    marginTop: 4,
+  todayBlob: {
+    position: "absolute",
+    width: 130, height: 130, borderRadius: 65,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    right: -28, top: -46,
   },
+  todayTopRow: { flexDirection: "row", alignItems: "center", gap: space[2] },
+  todayKicker: { fontSize: fontSize.label, fontWeight: "900", letterSpacing: 2 },
+  todayDateChip: {
+    backgroundColor: "rgba(255,255,255,0.45)",
+    borderRadius: radius.pill,
+    paddingHorizontal: space[2],
+    paddingVertical: 2,
+  },
+  todayDateText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  todayValue: { fontSize: 26, fontWeight: "900", letterSpacing: -0.8, marginTop: 5 },
+  todayCaption: { fontSize: fontSize.bodyS, fontWeight: "600", marginTop: 5, opacity: 0.75 },
   todayIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48, height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
   },
 
-  /* Last 7 */
-  last7Row: { flexDirection: "row", gap: 6 },
-  last7Cell: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: radius[3],
-    alignItems: "center",
-    justifyContent: "center",
+  /* Card */
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
     borderWidth: 1,
+    borderColor: colors.rule,
+    padding: space[4],
+    gap: space[4],
+    ...shadow.card,
   },
-  last7Day: { fontSize: fontSize.body, fontWeight: "800" },
-  last7Status: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
 
-  /* Stats */
-  statsRow: { flexDirection: "row", gap: 6 },
-  stat: {
-    flex: 1,
-    borderRadius: radius[3],
-    paddingVertical: space[3],
-    paddingHorizontal: 2,
+  /* Month stepper */
+  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  monthBtn: {
+    width: 38, height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.orangeTint,
     alignItems: "center",
-    gap: 2,
+    justifyContent: "center",
   },
-  statValue: { fontWeight: "800", letterSpacing: -0.4 },
-  statLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+  monthLabel: { fontSize: fontSize.bodyL, fontWeight: "800", color: colors.ink, letterSpacing: -0.2 },
+
+  /* Percent + progress */
+  pctRow: { flexDirection: "row", alignItems: "center", gap: space[4] },
+  bigPct: { fontSize: 32, fontWeight: "900", color: colors.ink, letterSpacing: -1.4 },
+  pctSign: { fontSize: 17, fontWeight: "800", color: colors.ink60 },
+  pctCaption: { fontSize: fontSize.bodyS, color: colors.ink60, fontWeight: "600", marginBottom: 8 },
+  progressTrack: { height: 9, backgroundColor: colors.cream, borderRadius: radius.pill, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: radius.pill },
+
+  /* Count chips */
+  chipsRow: { flexDirection: "row", gap: space[2] },
+  chip: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: space[3],
+    alignItems: "center",
+    gap: 3,
+  },
+  chipNum: { fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
+  chipLabel: { fontSize: 9.5, fontWeight: "800", letterSpacing: 0.6 },
 
   /* Calendar */
-  weekRow: { flexDirection: "row", marginBottom: space[2] },
+  weekRow: { flexDirection: "row" },
   weekHeader: {
     flex: 1,
     textAlign: "center",
@@ -315,24 +334,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   calGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
-    padding: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: radius[2],
-  },
-  calDay: { fontSize: fontSize.bodyS, fontWeight: "700" },
+  calCell: { width: `${100 / 7}%`, aspectRatio: 1, padding: 3 },
+  dayPill: { flex: 1, borderRadius: radius[3], alignItems: "center", justifyContent: "center" },
+  calDay: { fontSize: fontSize.body, fontWeight: "700" },
 
   legend: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: space[3],
     justifyContent: "center",
-    marginTop: space[2],
+    paddingTop: space[3],
+    borderTopWidth: 1,
+    borderTopColor: colors.ruleSoft,
   },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: space[1] },
-  legendDot: { width: 14, height: 14, borderRadius: radius[2], borderWidth: 1 },
-  legendText: { fontSize: fontSize.bodyS, color: colors.ink60 },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 12, height: 12, borderRadius: 4 },
+  legendText: { fontSize: fontSize.bodyS, color: colors.ink60, fontWeight: "600" },
 });

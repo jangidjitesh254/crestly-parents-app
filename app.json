@@ -22,17 +22,18 @@
     },
     "android": {
       "package": "in.crestly.parents",
-      "versionCode": 2,
+      "versionCode": 6,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F25C19"
+        "backgroundColor": "#100D0A"
       }
     },
     "plugins": [
       "expo-asset",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "apiBaseUrl": "https://app.crestly.in/api",

@@ -7,7 +7,6 @@ import {
   type MaterialTopTabBarProps,
 } from "@react-navigation/material-top-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
 import { useAuth } from "../store/auth";
 import { colors, fontSize, space } from "../theme";
 import type {
@@ -17,6 +16,7 @@ import type {
 } from "./types";
 
 import { LoginScreen } from "../screens/LoginScreen";
+import { LoginSuccess } from "../components/LoginSuccess";
 import { HomeScreen } from "../screens/HomeScreen";
 import { AttendanceScreen } from "../screens/AttendanceScreen";
 import { ExamsScreen } from "../screens/ExamsScreen";
@@ -28,7 +28,7 @@ import { TimetableScreen } from "../screens/more/TimetableScreen";
 
 const stackScreenOptions = {
   headerShown: false,
-  contentStyle: { backgroundColor: colors.creamSoft },
+  contentStyle: { backgroundColor: colors.white },
   animation: "slide_from_right" as const,
 };
 
@@ -79,26 +79,11 @@ const TAB_ICON: Record<
  */
 function FloatingTabBar({ state, navigation }: MaterialTopTabBarProps) {
   const insets = useSafeAreaInsets();
-  const bandHeight = Math.max(insets.bottom, 10) + 86;
   return (
     <View pointerEvents="box-none" style={fb.root}>
-      {/* Full-width frosted band — blurs ALL page content behind/around the
-          pill, not just the strip directly under it. */}
-      <BlurView
-        pointerEvents="none"
-        intensity={36}
-        tint="light"
-        experimentalBlurMethod="dimezisBlurView"
-        style={[fb.band, { height: bandHeight }]}
-      />
       <View pointerEvents="box-none" style={[fb.wrap, { bottom: Math.max(insets.bottom, 10) }]}>
       <View style={fb.shadow}>
-        <BlurView
-          intensity={55}
-          tint="light"
-          experimentalBlurMethod="dimezisBlurView"
-          style={fb.bar}
-        >
+        <View style={fb.bar}>
           {state.routes.map((route, index) => {
           const focused = state.index === index;
           const icon = TAB_ICON[route.name as keyof MainTabParams];
@@ -131,7 +116,7 @@ function FloatingTabBar({ state, navigation }: MaterialTopTabBarProps) {
             </Pressable>
           );
           })}
-        </BlurView>
+        </View>
       </View>
       </View>
     </View>
@@ -158,31 +143,22 @@ function MainTabs() {
 const fb = StyleSheet.create({
   // Covers the bottom strip of the screen; children position within it.
   root: { position: "absolute", left: 0, right: 0, bottom: 0 },
-  // Full-width frosted band pinned to the very bottom, behind the pill.
-  band: { position: "absolute", left: 0, right: 0, bottom: 0 },
   // Full-width transparent layer that centres the pill horizontally.
   wrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
-  // Shadow + a faint white backing live on the wrapper; the BlurView clips
-  // to the same radius on top so the frosted glass stays crisp.
+  // Soft shadow lives on the wrapper so the solid bar stays crisp.
   shadow: {
     borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.45)",
-    shadowColor: "#000",
-    shadowOpacity: 0.16,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 16,
-    elevation: 12,
+    boxShadow: "0px 8px 24px rgba(0,0,0,0.10)",
   },
-  // The frosted-glass bar — blurs whatever scrolls behind it.
+  // Clean, crisp solid floating bar — no blur over page content.
   bar: {
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 30,
     overflow: "hidden",
-    // Faint white film over the blur lifts contrast for the dark icons.
-    backgroundColor: "rgba(255,255,255,0.25)",
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.5)",
+    borderColor: colors.rule,
     paddingHorizontal: 8,
     paddingVertical: 8,
     gap: 2,
@@ -227,9 +203,15 @@ function Splash() {
 }
 
 export function RootNavigator() {
-  const { token, loading } = useAuth();
+  const { token, loading, justSignedIn, clearJustSignedIn } = useAuth();
   if (loading) return <Splash />;
-  return token ? <MainTabs /> : <LoginScreen />;
+  if (!token) return <LoginScreen />;
+  return (
+    <View style={{ flex: 1 }}>
+      <MainTabs />
+      {justSignedIn ? <LoginSuccess onDone={clearJustSignedIn} /> : null}
+    </View>
+  );
 }
 
 export { space };

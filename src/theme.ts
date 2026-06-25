@@ -112,6 +112,23 @@ export const radius = {
   pill: 999,
 } as const;
 
+/**
+ * "Crestly Warm Card" — the app's signature surface: white rounded card on a
+ * warm sand canvas, lifted by a soft warm-tinted shadow (never a hard grey
+ * drop-shadow). Reuse this everywhere a card needs elevation.
+ */
+export const shadow = {
+  // Soft, diffuse, low-opacity drop shadow. `boxShadow` (New Architecture)
+  // blurs gently on both platforms — unlike Android `elevation`, which renders
+  // a hard/solid shadow. Kept very light so cards feel lifted, not heavy.
+  card: {
+    boxShadow: "0px 5px 18px rgba(28,22,15,0.05)",
+  },
+  cardLg: {
+    boxShadow: "0px 8px 24px rgba(28,22,15,0.07)",
+  },
+} as const;
+
 /** Token type scale, adapted for handset sizing. */
 export const fontSize = {
   displayL: 32,
@@ -156,7 +173,7 @@ export const navTheme: Theme = {
   colors: {
     ...DefaultTheme.colors,
     primary: colors.orange,
-    background: colors.creamSoft,
+    background: colors.white,
     card: colors.white,
     text: colors.ink,
     border: colors.rule,

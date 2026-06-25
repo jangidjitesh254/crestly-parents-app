@@ -186,7 +186,7 @@ function BarRow({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.creamSoft },
+  root: { flex: 1, backgroundColor: colors.white },
 
   /* Hero */
   hero: { borderRadius: 20, padding: space[5], gap: space[3] },

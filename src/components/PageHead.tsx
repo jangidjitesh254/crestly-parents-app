@@ -53,12 +53,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink40,
   },
   title: {
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: "800",
     color: colors.ink,
-    letterSpacing: -0.8,
-    lineHeight: 38,
+    letterSpacing: -0.6,
+    lineHeight: 30,
   },
   titleDot: { color: colors.orange },
-  subtitle: { fontSize: fontSize.bodyL, color: colors.ink60 },
+  subtitle: { fontSize: fontSize.body, color: colors.ink60 },
 });

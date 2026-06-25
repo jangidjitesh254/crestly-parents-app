@@ -22,7 +22,7 @@ import {
 // @ts-ignore — package ships without bundled types
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, fontSize, radius, space } from "../theme";
+import { colors, fontSize, radius, shadow, space } from "../theme";
 
 /* -------------------------------------------------------- FadeInView */
 
@@ -135,8 +135,10 @@ export function Screen({
   if (!scroll) {
     return (
       <View style={[styles.screen, styles.pad, contentStyle]}>
-        {children}
-        <View style={{ height: bottomSpacer }} />
+        <View style={styles.inner}>
+          {children}
+          <View style={{ height: bottomSpacer }} />
+        </View>
       </View>
     );
   }
@@ -155,8 +157,10 @@ export function Screen({
           : undefined
       }
     >
-      {children}
-      <View style={{ height: bottomSpacer }} />
+      <View style={styles.inner}>
+        {children}
+        <View style={{ height: bottomSpacer }} />
+      </View>
     </KeyboardAwareScrollView>
   );
 }
@@ -592,9 +596,12 @@ export function StateView({
 /* ----------------------------------------------------------------- styles */
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.creamSoft },
+  screen: { flex: 1, backgroundColor: colors.white },
   pad: { padding: space[4] },
-  scrollContent: { padding: space[4], gap: space[3] },
+  scrollContent: { padding: space[4] },
+  // Constrain + centre content so it reads well on tablets / large screens,
+  // while filling the width on phones. The vertical rhythm lives here now.
+  inner: { width: "100%", maxWidth: 640, alignSelf: "center", gap: space[3] },
 
   title: {
     fontSize: fontSize.displayS,
@@ -617,6 +624,7 @@ const styles = StyleSheet.create({
     borderColor: colors.rule,
     padding: space[4],
     gap: space[2],
+    ...shadow.card,
   },
 
   button: {
