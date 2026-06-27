@@ -247,10 +247,16 @@ export interface ParentContactStaff {
   roleLabel: string;
   name: string;
   designation: string | null;
+  /** null when callMasked = true (number is never exposed to the client). */
   phone: string | null;
+  /** Personal WhatsApp; use the school number when callMasked = true. */
   whatsapp: string | null;
   callStart: string | null;
   callEnd: string | null;
+  /** false → outside the call window: disable Call, show WhatsApp only. */
+  canCallNow?: boolean;
+  /** true → place the call via the API (ExoPhone bridge), not a tel: link. */
+  callMasked?: boolean;
   /** For subject teachers. */
   subjects?: string[];
   isClassTeacher?: boolean;
@@ -272,9 +278,170 @@ export interface ParentContactResponse {
   srNumber: number;
   classLabel: string;
   office: ParentOfficeStatus;
+  /** Masked calling configured for this school (per-staff still gated by callMasked). */
+  callingEnabled?: boolean;
+  /** After-hours WhatsApp channel; null when WhatsApp isn't set up. */
+  schoolWhatsapp?: string | null;
   subjectTeachers: ParentContactStaff[];
   /** reception → principal → etc. */
   schoolChain: ParentContactStaff[];
+}
+
+/* ----------------------------------------------------- masked calling */
+
+export interface MaskedCallRequest {
+  sr: number;
+  /** users.id of the staffer to reach (ParentContactStaff.id). */
+  staffId: number;
+}
+
+export interface MaskedCallResult {
+  ok: boolean;
+  callId: string | null;
+  /** "ringing" etc. */
+  status: string | null;
+  message: string | null;
+}
+
+/* ----------------------------------------------------------- calendar */
+
+export type CalendarSource = "event" | "holiday" | "exam";
+export type CalendarAudience = "all" | "staff" | "parents";
+export type CalendarCategory =
+  | "event"
+  | "ptm"
+  | "function"
+  | "activity"
+  | "sports"
+  | "exam"
+  | "fee"
+  | "meeting"
+  | "notice"
+  | "holiday"
+  | "other";
+
+export interface CalendarFeedItem {
+  /** Stable composite id across sources, e.g. "event:12". */
+  key: string;
+  source: CalendarSource;
+  refId: number;
+  title: string;
+  category: CalendarCategory;
+  /** YYYY-MM-DD */
+  date: string;
+  /** Multi-day events only. */
+  endDate: string | null;
+  /** "HH:MM" when not all-day. */
+  startTime: string | null;
+  endTime: string | null;
+  allDay: boolean;
+  /** true = non-working day (render greyed). */
+  isHoliday: boolean;
+  audience: CalendarAudience;
+  /** null = school-wide. */
+  classLabel: string | null;
+  location: string | null;
+  color: string | null;
+  editable: boolean;
+}
+
+export interface CalendarFeedResponse {
+  from: string;
+  to: string;
+  items: CalendarFeedItem[];
+}
+
+/* -------------------------------------------------------------- tests */
+
+export type ParentTestState = "available" | "upcoming" | "closed" | "attempted";
+export type TestQuestionType = "mcq" | "fill_blank";
+
+export interface ParentTestListItem {
+  id: number;
+  title: string;
+  subjectName: string | null;
+  totalMarks: number;
+  /** Pass threshold; null = no pass/fail. */
+  passMarks: number | null;
+  questionCount: number;
+  durationMin: number | null;
+  availableFrom: string | null;
+  availableTo: string | null;
+  state: ParentTestState;
+  /** Set when state = "attempted". */
+  score: number | null;
+  /** score >= passMarks; null when no pass mark or not yet attempted. */
+  passed: boolean | null;
+}
+
+export interface ParentTestListResponse {
+  srNumber: number;
+  tests: ParentTestListItem[];
+}
+
+export interface ParentTestOption {
+  text: string;
+}
+
+export interface ParentTestQuestion {
+  id: number;
+  type: TestQuestionType;
+  prompt: string;
+  marks: number;
+  /** MCQ options (no correctness flags); null for fill_blank. */
+  options: ParentTestOption[] | null;
+}
+
+export interface ParentTestDetail {
+  id: number;
+  title: string;
+  instructions: string | null;
+  subjectName: string | null;
+  durationMin: number | null;
+  totalMarks: number;
+  alreadyAttempted: boolean;
+  questions: ParentTestQuestion[];
+}
+
+export interface TestAnswerInput {
+  questionId: number;
+  /** MCQ: selected option indices. */
+  selectedOptions?: number[];
+  /** fill_blank: typed text. */
+  responseText?: string;
+}
+
+export interface TestSubmitInput {
+  sr: number;
+  answers: TestAnswerInput[];
+}
+
+export interface GradedAnswer {
+  questionId: number;
+  type: TestQuestionType;
+  prompt: string;
+  marks: number;
+  awardedMarks: number;
+  isCorrect: boolean;
+  selectedOptions: number[] | null;
+  responseText: string | null;
+  /** Revealed after submission. */
+  correctOptions: number[] | null;
+  acceptedAnswers: string[] | null;
+}
+
+export interface TestSubmitResult {
+  testId: number;
+  srNumber: number;
+  score: number;
+  maxScore: number;
+  percent: number;
+  /** Pass threshold; null = no pass/fail for this test. */
+  passMarks: number | null;
+  /** score >= passMarks; null when no pass mark is set. */
+  passed: boolean | null;
+  submittedAt: string;
+  answers: GradedAnswer[];
 }
 
 /* --------------------------------------------------------------- more */

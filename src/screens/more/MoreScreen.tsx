@@ -18,6 +18,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useAuth } from "../../store/auth";
 import { useParentMoreInfo, useParentHome, useParentTransport } from "../../hooks/queries";
 import { FadeInView, Screen } from "../../components/ui";
+import { appVersion, openAppUpdate } from "../../lib/appUpdate";
 import { ageFromDob, formatDob } from "../../lib/dates";
 import { colors, fontSize, radius, shadow, space, tints } from "../../theme";
 import type { MoreStackParams } from "../../navigation/types";
@@ -43,10 +44,8 @@ export function MoreScreen({ navigation }: Props) {
   const parentName = realName ?? "Parent";
   const subLine = [phone, relationship].filter(Boolean).join("  ·  ");
 
-  // Which student cards are expanded (first one open by default).
-  const [open, setOpen] = useState<Set<number>>(
-    () => new Set(kids[0] ? [kids[0].srNumber] : []),
-  );
+  // Which student cards are expanded (all collapsed by default).
+  const [open, setOpen] = useState<Set<number>>(() => new Set<number>());
   function toggle(sr: number) {
     LayoutAnimation.configureNext(EXPAND_ANIM);
     setOpen((prev) => {
@@ -115,6 +114,18 @@ export function MoreScreen({ navigation }: Props) {
         <FadeInView delay={160}>
           <View style={styles.menu}>
             <MenuRow
+              icon="calendar-outline"
+              label="School Calendar"
+              sub="Events, holidays & exams"
+              onPress={() => navigation.navigate("Calendar")}
+            />
+            <MenuRow
+              icon="document-text-outline"
+              label="Online Tests"
+              sub="Attempt tests & see scores"
+              onPress={() => navigation.navigate("Tests")}
+            />
+            <MenuRow
               icon="book-outline"
               label="Diary & Homework"
               sub="What was taught + homework"
@@ -138,6 +149,12 @@ export function MoreScreen({ navigation }: Props) {
                 }
               />
             ) : null}
+            <MenuRow
+              icon="cloud-download-outline"
+              label="Update app"
+              sub={`Get the latest version · v${appVersion()}`}
+              onPress={() => void openAppUpdate()}
+            />
             <MenuRow
               icon="log-out-outline"
               label="Log out"

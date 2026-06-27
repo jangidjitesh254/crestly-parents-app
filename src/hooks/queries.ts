@@ -3,10 +3,12 @@
  * is fully self-contained — all data lives under one namespace and the
  * JWT carries the list of SRs in scope (see ParentJwtGuard server-side).
  */
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type {
+  CalendarFeedResponse,
   CheckoutSession,
+  MaskedCallResult,
   ParentAttendanceMonth,
   ParentContactResponse,
   ParentDiaryResponse,
@@ -15,8 +17,12 @@ import type {
   ParentLoginResponse,
   ParentMoreInfo,
   ParentSchoolInfo,
+  ParentTestDetail,
+  ParentTestListResponse,
   ParentTimetableResponse,
   ParentTransportResponse,
+  TestSubmitInput,
+  TestSubmitResult,
 } from "../types/api";
 
 const KEY = ["parent"] as const;
@@ -111,6 +117,86 @@ export function useParentContact(sr: number) {
           params: { sr },
         })
       ).data,
+  });
+}
+
+/**
+ * Place a masked (ExoPhone-bridged) call to a staffer. The parent's phone
+ * rings first, then the staffer's — neither sees the other's number. The
+ * result carries no phone numbers, just a call id + status.
+ */
+export function usePlaceMaskedCall() {
+  return useMutation({
+    mutationFn: async (vars: { sr: number; staffId: number }) =>
+      (
+        await api.post<MaskedCallResult>("/parent/contact/call", {
+          sr: vars.sr,
+          staffId: vars.staffId,
+        })
+      ).data,
+  });
+}
+
+/* --------------------------------------------------------- calendar */
+
+/** Merged school calendar (events + holidays + exams) for the child's class. */
+export function useParentCalendar(sr: number, month: string) {
+  return useQuery({
+    queryKey: [...KEY, "calendar", sr, month],
+    enabled: sr > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () =>
+      (
+        await api.get<CalendarFeedResponse>("/parent/calendar", {
+          params: { sr, month },
+        })
+      ).data,
+  });
+}
+
+/* ------------------------------------------------------------- tests */
+
+export function useParentTests(sr: number) {
+  return useQuery({
+    queryKey: [...KEY, "tests", sr],
+    enabled: sr > 0,
+    queryFn: async () =>
+      (await api.get<ParentTestListResponse>("/parent/tests", { params: { sr } }))
+        .data,
+  });
+}
+
+export function useParentTest(id: number, sr: number) {
+  return useQuery({
+    queryKey: [...KEY, "test", id, sr],
+    enabled: sr > 0 && id > 0,
+    // The attempt screen must always start from a fresh copy (never a stale
+    // "alreadyAttempted" flag), so don't cache the open-test payload.
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async () =>
+      (
+        await api.get<ParentTestDetail>(`/parent/tests/${id}`, {
+          params: { sr },
+        })
+      ).data,
+  });
+}
+
+/** Submit answers; the server grades on submit and returns the revealed key. */
+export function useSubmitTest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { id: number; body: TestSubmitInput }) =>
+      (
+        await api.post<TestSubmitResult>(
+          `/parent/tests/${vars.id}/submit`,
+          vars.body,
+        )
+      ).data,
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: [...KEY, "tests", vars.body.sr] });
+    },
   });
 }
 

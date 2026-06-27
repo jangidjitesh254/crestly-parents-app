@@ -9,6 +9,9 @@ export type MoreStackParams = {
   Contact: undefined;
   Diary: undefined;
   Timetable: undefined;
+  Calendar: undefined;
+  Tests: undefined;
+  TestAttempt: { testId: number; title: string };
 };
 
 /**

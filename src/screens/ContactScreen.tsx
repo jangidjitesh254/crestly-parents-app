@@ -3,18 +3,22 @@
  * with one-tap Call and WhatsApp. A top banner shows the school's office
  * hours and the current time.
  *
- * Per-staff "available now / call window" strips from the mockup are NOT
- * shown: the contact endpoint returns callStart/callEnd as null today, so
- * there's no real availability data to back them.
+ * Two privacy rules from the API drive the buttons (all enforced server-side):
+ *  - Office-hours gating: `canCallNow` is true only inside a staffer's call
+ *    window. Outside it, Call is hidden and only WhatsApp is offered.
+ *  - Masked calling: when `callMasked` is true the personal `phone` comes back
+ *    null and the call is placed via the API (ExoPhone bridge); WhatsApp then
+ *    routes to the school's number (`schoolWhatsapp`), never a personal one.
  */
 import React, { useEffect, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useAuth } from "../store/auth";
-import { useParentContact, useParentMoreInfo } from "../hooks/queries";
+import { useParentContact, useParentMoreInfo, usePlaceMaskedCall } from "../hooks/queries";
+import { getErrorMessage } from "../lib/api";
 import { ChildSwitcher } from "../components/ChildSwitcher";
-import { Card, FadeInView, Screen, StateView } from "../components/ui";
+import { Card, FadeInView, SavedToast, Screen, StateView } from "../components/ui";
 import { TopBar } from "../components/TopBar";
 import { PageHead } from "../components/PageHead";
 import { colors, fontSize, radius, space, tints } from "../theme";
@@ -41,12 +45,21 @@ function fmtTime(t: string | null): string | null {
   return `${h12}:${String(Number.isFinite(m) ? m : 0).padStart(2, "0")} ${ampm}`;
 }
 
+function openWhatsapp(num: string | null | undefined) {
+  if (!num) return;
+  const digits = num.replace(/\D/g, "");
+  if (digits) Linking.openURL(`https://wa.me/${digits}`).catch(() => undefined);
+}
+
 export function ContactScreen({ navigation }: Props) {
   const { kids, activeChildSr } = useAuth();
   const sr = activeChildSr ?? kids[0]?.srNumber ?? 0;
   const contact = useParentContact(sr);
   const more = useParentMoreInfo();
+  const placeCall = usePlaceMaskedCall();
   const d = contact.data;
+
+  const [toast, setToast] = useState<string | null>(null);
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -59,9 +72,25 @@ export function ContactScreen({ navigation }: Props) {
   const officeTint = open ? tints.mint : tints.wheat;
   const officeHours = office?.hoursLabel ?? more.data?.officeHours ?? "Mon–Fri 8 AM – 4 PM · Sat till 1 PM";
 
+  function callMasked(s: ParentContactStaff) {
+    if (placeCall.isPending) return;
+    placeCall.mutate(
+      { sr, staffId: s.id },
+      {
+        onSuccess: (r) => {
+          setToast(r.message ?? "Connecting… your phone will ring.");
+        },
+        onError: (e) => {
+          Alert.alert("Couldn't place call", getErrorMessage(e, "Please try again in a moment."));
+        },
+      },
+    );
+  }
+
   return (
     <View style={styles.root}>
       <TopBar showBack onBack={() => navigation.goBack()} />
+      <SavedToast visible={!!toast} text={toast ?? ""} onHide={() => setToast(null)} />
       <Screen refreshing={contact.isFetching} onRefresh={() => void contact.refetch()}>
         <PageHead
           crumb="Contact"
@@ -98,23 +127,39 @@ export function ContactScreen({ navigation }: Props) {
             {d.subjectTeachers.length > 0 ? (
               <FadeInView delay={60}>
                 <Text style={styles.sectionLabel}>SUBJECT TEACHERS</Text>
-                {d.subjectTeachers.map((s) => <StaffCard key={s.id} s={s} />)}
+                {d.subjectTeachers.map((s) => (
+                  <StaffCard
+                    key={s.id}
+                    s={s}
+                    schoolWhatsapp={d.schoolWhatsapp ?? null}
+                    placing={placeCall.isPending}
+                    onMaskedCall={() => callMasked(s)}
+                  />
+                ))}
               </FadeInView>
             ) : null}
 
             {d.schoolChain.length > 0 ? (
               <FadeInView delay={120}>
                 <Text style={styles.sectionLabel}>SCHOOL OFFICE & ADMIN</Text>
-                {d.schoolChain.map((s) => <StaffCard key={s.id} s={s} />)}
+                {d.schoolChain.map((s) => (
+                  <StaffCard
+                    key={s.id}
+                    s={s}
+                    schoolWhatsapp={d.schoolWhatsapp ?? null}
+                    placing={placeCall.isPending}
+                    onMaskedCall={() => callMasked(s)}
+                  />
+                ))}
               </FadeInView>
             ) : null}
 
             {/* How to reach */}
             <View style={styles.help}>
               <Text style={styles.helpTitle}>How to reach school</Text>
-              <Bullet text="Tap Call to dial during school office hours." />
+              <Bullet text="Tap Call during a staffer's call window — outside it, use WhatsApp." />
+              <Bullet text="Some calls connect through a school line, so numbers stay private." />
               <Bullet text="WhatsApp is open 24×7 — leave a message and staff will read it when free." />
-              <Bullet text="Subject teachers are usually free after class hours." />
             </View>
           </>
         ) : null}
@@ -123,20 +168,39 @@ export function ContactScreen({ navigation }: Props) {
   );
 }
 
-function StaffCard({ s }: { s: ParentContactStaff }) {
+function StaffCard({
+  s,
+  schoolWhatsapp,
+  placing,
+  onMaskedCall,
+}: {
+  s: ParentContactStaff;
+  schoolWhatsapp: string | null;
+  placing: boolean;
+  onMaskedCall: () => void;
+}) {
+  // Default to allowed when the server didn't send a window (older payloads).
+  const canCallNow = s.canCallNow ?? true;
+  const masked = s.callMasked ?? false;
+  // Is calling possible at all? Masked always has a path; otherwise needs a number.
+  const callable = masked || !!s.phone;
+  // WhatsApp routes to the school number when the staffer is masked.
+  const wa = masked ? schoolWhatsapp : s.whatsapp;
+
   function tel() {
     if (s.phone) Linking.openURL(`tel:${s.phone}`).catch(() => undefined);
   }
-  function whatsapp() {
-    if (s.whatsapp) {
-      const digits = s.whatsapp.replace(/\D/g, "");
-      Linking.openURL(`https://wa.me/${digits}`).catch(() => undefined);
-    }
+  function onCall() {
+    if (masked) onMaskedCall();
+    else tel();
   }
+
   const sub =
     s.subjects && s.subjects.length > 0
       ? `${s.designation ? s.designation + " · " : ""}${s.subjects.join(", ")}`
       : s.designation ?? "";
+
+  const showCall = callable && canCallNow;
 
   return (
     <Card style={styles.staffCard}>
@@ -149,32 +213,44 @@ function StaffCard({ s }: { s: ParentContactStaff }) {
           <Text style={styles.name} numberOfLines={1}>{s.name}</Text>
           {sub ? <Text style={styles.designation} numberOfLines={2}>{sub}</Text> : null}
         </View>
+        {masked ? (
+          <View style={styles.maskedTag}>
+            <Ionicons name="shield-checkmark" size={11} color={tints.sky.deep} />
+            <Text style={styles.maskedTagText}>Private</Text>
+          </View>
+        ) : null}
       </View>
 
+      {/* Call-window strip — green when callable now, muted otherwise. */}
       {s.callStart && s.callEnd ? (
-        <View style={styles.availRow}>
-          <View style={styles.availDot} />
-          <Text style={styles.availText} numberOfLines={1}>
-            Call window {fmtTime(s.callStart)} – {fmtTime(s.callEnd)}
+        <View style={[styles.availRow, !canCallNow && styles.availRowOff]}>
+          <View style={[styles.availDot, !canCallNow && styles.availDotOff]} />
+          <Text style={[styles.availText, !canCallNow && styles.availTextOff]} numberOfLines={1}>
+            {canCallNow ? "Available now · " : "Call window "}
+            {fmtTime(s.callStart)} – {fmtTime(s.callEnd)}
           </Text>
         </View>
       ) : null}
 
-      {(s.phone || s.whatsapp) ? (
+      {(showCall || wa) ? (
         <View style={styles.actionRow}>
-          {s.phone ? (
+          {showCall ? (
             <Pressable
-              onPress={tel}
+              onPress={onCall}
+              disabled={placing && masked}
               android_ripple={{ color: "rgba(255,255,255,0.14)" }}
-              style={({ pressed }) => [styles.callBtn, pressed && { opacity: 0.85 }]}
+              style={({ pressed }) => [
+                styles.callBtn,
+                (pressed || (placing && masked)) && { opacity: 0.85 },
+              ]}
             >
-              <Ionicons name="call" size={16} color={colors.cream} />
-              <Text style={styles.callText}>Call</Text>
+              <Ionicons name={masked ? "shield-half" : "call"} size={16} color={colors.cream} />
+              <Text style={styles.callText}>{masked ? "Call privately" : "Call"}</Text>
             </Pressable>
           ) : null}
-          {s.whatsapp ? (
+          {wa ? (
             <Pressable
-              onPress={whatsapp}
+              onPress={() => openWhatsapp(wa)}
               android_ripple={{ color: "rgba(255,255,255,0.14)" }}
               style={({ pressed }) => [styles.waBtn, pressed && { opacity: 0.85 }]}
             >
@@ -183,6 +259,12 @@ function StaffCard({ s }: { s: ParentContactStaff }) {
             </Pressable>
           ) : null}
         </View>
+      ) : null}
+
+      {!showCall && callable ? (
+        <Text style={styles.offHint}>
+          Calling opens during the call window — WhatsApp anytime.
+        </Text>
       ) : null}
     </Card>
   );
@@ -254,6 +336,18 @@ const styles = StyleSheet.create({
   name: { fontSize: fontSize.bodyL, fontWeight: "800", color: colors.ink, marginTop: 2 },
   designation: { fontSize: fontSize.bodyS, color: colors.ink60, marginTop: 2 },
 
+  maskedTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    alignSelf: "flex-start",
+    backgroundColor: tints.sky.base,
+    paddingHorizontal: space[2],
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  maskedTagText: { fontSize: 10, fontWeight: "800", color: tints.sky.deep, letterSpacing: 0.3 },
+
   availRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -264,8 +358,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radius[2],
   },
+  availRowOff: { backgroundColor: colors.cream },
   availDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: tints.mint.deep },
+  availDotOff: { backgroundColor: colors.ink40 },
   availText: { fontSize: fontSize.bodyS, color: tints.mint.deep, fontWeight: "700" },
+  availTextOff: { color: colors.ink60 },
 
   actionRow: { flexDirection: "row", gap: space[2] },
   callBtn: {
@@ -290,6 +387,7 @@ const styles = StyleSheet.create({
     paddingVertical: space[3],
   },
   waText: { color: colors.white, fontSize: fontSize.body, fontWeight: "800" },
+  offHint: { fontSize: fontSize.bodyS, color: colors.ink40, fontStyle: "italic" },
 
   /* How to reach */
   help: {

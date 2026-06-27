@@ -72,10 +72,12 @@ export function HomeScreen({ navigation }: Props) {
   }[] = [
     { key: "att", icon: "checkbox-outline", label: "Attendance", sub: "Daily record", tint: tints.mint, go: () => navigation.navigate("Attendance" as never) },
     { key: "exam", icon: "school-outline", label: "Results", sub: "Exams & marks", tint: tints.sky, go: () => navigation.navigate("Exams" as never) },
+    { key: "tests", icon: "document-text-outline", label: "Tests", sub: "Attempt & scores", tint: tints.rose, go: () => navigation.navigate("Profile", { screen: "Tests" } as never) },
     { key: "fee", icon: "wallet-outline", label: "Fees", sub: "Dues & receipts", tint: tints.peach, go: () => navigation.navigate("Fees" as never) },
+    { key: "cal", icon: "calendar-outline", label: "Calendar", sub: "Events & holidays", tint: tints.mustard, go: () => navigation.navigate("Profile", { screen: "Calendar" } as never) },
     { key: "diary", icon: "book-outline", label: "Diary", sub: "Homework", tint: tints.wheat, go: () => navigation.navigate("Profile", { screen: "Diary" } as never) },
-    { key: "tt", icon: "grid-outline", label: "Timetable", sub: "Weekly plan", tint: tints.rose, go: () => navigation.navigate("Profile", { screen: "Timetable" } as never) },
-    { key: "call", icon: "call-outline", label: "Contact", sub: "Reach school", tint: tints.mustard, go: () => navigation.navigate("Profile", { screen: "Contact" } as never) },
+    { key: "tt", icon: "grid-outline", label: "Timetable", sub: "Weekly plan", tint: tints.mint, go: () => navigation.navigate("Profile", { screen: "Timetable" } as never) },
+    { key: "call", icon: "call-outline", label: "Contact", sub: "Reach school", tint: tints.sky, go: () => navigation.navigate("Profile", { screen: "Contact" } as never) },
   ];
 
   return (

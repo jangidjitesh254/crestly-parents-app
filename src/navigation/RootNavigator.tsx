@@ -22,6 +22,9 @@ import { AttendanceScreen } from "../screens/AttendanceScreen";
 import { ExamsScreen } from "../screens/ExamsScreen";
 import { FeesScreen } from "../screens/FeesScreen";
 import { ContactScreen } from "../screens/ContactScreen";
+import { CalendarScreen } from "../screens/CalendarScreen";
+import { TestsScreen } from "../screens/tests/TestsScreen";
+import { TestAttemptScreen } from "../screens/tests/TestAttemptScreen";
 import { MoreScreen } from "../screens/more/MoreScreen";
 import { DiaryScreen } from "../screens/more/DiaryScreen";
 import { TimetableScreen } from "../screens/more/TimetableScreen";
@@ -53,6 +56,9 @@ function MoreNavigator() {
       <MoreStack.Screen name="Contact" component={ContactScreen} />
       <MoreStack.Screen name="Diary" component={DiaryScreen} />
       <MoreStack.Screen name="Timetable" component={TimetableScreen} />
+      <MoreStack.Screen name="Calendar" component={CalendarScreen} />
+      <MoreStack.Screen name="Tests" component={TestsScreen} />
+      <MoreStack.Screen name="TestAttempt" component={TestAttemptScreen} />
     </MoreStack.Navigator>
   );
 }
